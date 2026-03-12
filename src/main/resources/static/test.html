@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+</head>
+
+<body>
+
+<input id="msg" placeholder="message">
+<button onclick="send()">Send</button>
+
+<ul id="messages"></ul>
+
+<script>
+
+    let socket = new SockJS("http://localhost:8080/ws");
+    let stomp = Stomp.over(socket);
+
+    stomp.connect({}, function() {
+
+        stomp.subscribe("/topic/messages", function(message) {
+
+            let li = document.createElement("li");
+            li.innerText = JSON.parse(message.body).message;
+            document.getElementById("messages").appendChild(li);
+
+        });
+
+    });
+
+    function send() {
+
+        let msg = document.getElementById("msg").value;
+
+        stomp.send("/app/chat", {}, JSON.stringify({
+            sender:"user",
+            message: msg
+        }));
+    }
+
+</script>
+
+</body>
+</html>
