@@ -37,7 +37,7 @@ public class RoomManager {
         } while (rooms.containsKey(roomId));
 
         //Create room
-        Room room = new Room(roomId, new ArrayList<>());
+        Room room =  new Room(roomId,new ArrayList<>(),"tree");
 
         System.out.println("Created room with ID: " + roomId);
 

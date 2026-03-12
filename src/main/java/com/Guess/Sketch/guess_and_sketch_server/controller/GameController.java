@@ -1,8 +1,6 @@
 package com.Guess.Sketch.guess_and_sketch_server.controller;
 
-import com.Guess.Sketch.guess_and_sketch_server.dto.ChatMessage;
-import com.Guess.Sketch.guess_and_sketch_server.dto.CreateRoomMessage;
-import com.Guess.Sketch.guess_and_sketch_server.dto.JoinRoomMessage;
+import com.Guess.Sketch.guess_and_sketch_server.dto.*;
 import com.Guess.Sketch.guess_and_sketch_server.model.Room;
 import com.Guess.Sketch.guess_and_sketch_server.service.RoomManager;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -83,5 +81,40 @@ public class GameController {
                 "/topic/room/" + roomId + "/chat",
                 username + ": " + message.getMessage()
         );
+    }
+
+    @MessageMapping("/draw")
+    public void draw(DrawEvent drawEvent,
+                     SimpMessageHeaderAccessor headerAccessor) {
+
+        String sessionId = headerAccessor.getSessionId();
+
+        String roomId = roomManager.getRoomIdBySession(sessionId);
+
+        messagingTemplate.convertAndSend(
+                "/topic/room/" + roomId + "/draw",
+                drawEvent
+        );
+    }
+
+    @MessageMapping("/guess")
+    public void guess(GuessMessage message,
+                      SimpMessageHeaderAccessor headerAccessor){
+
+        String sessionId = headerAccessor.getSessionId();
+
+        String roomId = roomManager.getRoomIdBySession(sessionId);
+
+        Room room = roomManager.getRoomById(roomId);
+
+        String username = room.getPlayerBySession(sessionId).getUsername();
+
+        if(message.getMessage().equalsIgnoreCase(room.getCurrentWord())){
+            messagingTemplate.convertAndSend(
+                    "/topic/room/"+ roomId,username+" guessed Correctly");
+        }else{
+            messagingTemplate.convertAndSend(
+                    "/topic/room/"+ roomId,username+" guessed wrong !");
+        }
     }
 }

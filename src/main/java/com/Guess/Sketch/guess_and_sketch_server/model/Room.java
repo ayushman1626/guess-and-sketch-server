@@ -5,13 +5,21 @@ import lombok.*;
 
 import java.util.List;
 
+@Builder
 public class Room {
     private String roomId;
     private List<Player> players;
+    private String currentWord;
 
     public Room(String roomId, List<Player> players) {
         this.roomId = roomId;
         this.players = players;
+    }
+
+    public Room(String roomId, List<Player> players, String currentWord) {
+        this.roomId = roomId;
+        this.players = players;
+        this.currentWord = currentWord;
     }
 
     public String getRoomId() {
@@ -28,6 +36,14 @@ public class Room {
 
     public void setPlayers(List<Player> players) {
         this.players = players;
+    }
+
+    public String getCurrentWord() {
+        return currentWord;
+    }
+
+    public void setCurrentWord(String currentWord) {
+        this.currentWord = currentWord;
     }
 
     public CreateRoomMessage getPlayerBySession(String sessionId) {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html xmlns="http://www.w3.org/1999/html">
 <head>
     <title>SketchGuess Test</title>
 
@@ -25,6 +25,15 @@
 <button onclick="joinRoom()">Join Room</button>
 
 <hr>
+
+<h3>Drawing Board</h3>
+
+<canvas id="board" width="600" height="400" style="border:1px solid black"></canvas>
+
+<h3>Guess</h3>
+
+<input id="guessInput" placeholder="Type guess">
+<button onclick="sendGuess()">Guess</button>
 
 <h3>Room Messages</h3>
 
@@ -106,6 +115,19 @@ function subscribeToRoom(roomId) {
     document.getElementById("messages").appendChild(li);
 
     });
+
+    stompClient.subscribe("/topic/room/" + roomId + "/draw", function(message) {
+
+    const drawEvent = JSON.parse(message.body);
+
+    drawLine(
+        drawEvent.prevX,
+        drawEvent.prevY,
+        drawEvent.currentX,
+        drawEvent.currentY
+    );
+
+});
 }
     function sendChat() {
 
@@ -119,7 +141,76 @@ function subscribeToRoom(roomId) {
 
 }
 
+//***************************************************************
+    const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+
+let drawing = false;
+let prevX = 0;
+let prevY = 0;
+
+canvas.addEventListener("mousedown", function(e) {
+    drawing = true;
+    prevX = e.offsetX;
+    prevY = e.offsetY;
+});
+
+canvas.addEventListener("mouseup", function() {
+    drawing = false;
+});
+
+canvas.addEventListener("mousemove", function(e) {
+
+    if (!drawing) return;
+
+    const x = e.offsetX;
+    const y = e.offsetY;
+
+    drawLine(prevX, prevY, x, y);
+
+    sendDraw(prevX, prevY, x, y);
+
+    prevX = x;
+    prevY = y;
+
+});
+
+    function drawLine(x1, y1, x2, y2) {
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+}
+
+    function sendDraw(prevX, prevY, currentX, currentY) {
+
+    stompClient.send("/app/draw", {}, JSON.stringify({
+
+        prevX: prevX,
+        prevY: prevY,
+        currentX: currentX,
+        currentY: currentY,
+        color: "black"
+
+    }));
+
+}
+
+    //****************
+    function sendGuess() {
+
+    let guess = document.getElementById("guessInput").value;
+
+    stompClient.send("/app/guess", {}, JSON.stringify({
+        message: guess
+    }));
+
+}
+
 </script>
+
 
 </body>
 </html>
