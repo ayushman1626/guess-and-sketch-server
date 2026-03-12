@@ -3,6 +3,7 @@ package com.Guess.Sketch.guess_and_sketch_server.controller;
 import com.Guess.Sketch.guess_and_sketch_server.dto.*;
 import com.Guess.Sketch.guess_and_sketch_server.model.Room;
 import com.Guess.Sketch.guess_and_sketch_server.service.RoomManager;
+import com.Guess.Sketch.guess_and_sketch_server.service.WordService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
@@ -17,10 +18,15 @@ import java.util.Map;
 public class GameController {
     private final RoomManager roomManager;
     private final SimpMessagingTemplate messagingTemplate;
+    private final WordService wordService;
 
-    public GameController(RoomManager roomManager, SimpMessagingTemplate messagingTemplate) {
+    public GameController(RoomManager roomManager,
+                          SimpMessagingTemplate messagingTemplate,
+                          WordService wordService
+    ) {
         this.roomManager = roomManager;
         this.messagingTemplate = messagingTemplate;
+        this.wordService = wordService;
     }
 
     @MessageMapping("/joinRoom")
@@ -116,5 +122,18 @@ public class GameController {
             messagingTemplate.convertAndSend(
                     "/topic/room/"+ roomId,username+" guessed wrong !");
         }
+    }
+
+    @MessageMapping("/requestWords")
+    @SendToUser("/queue/word-options")
+    public WordOptionMessage getWords(
+            SimpMessageHeaderAccessor headerAccessor){
+        String session_id = headerAccessor.getSessionId();
+
+        String roomId = roomManager.getRoomIdBySession(session_id);
+
+        Room room = roomManager.getRoomById(roomId);
+
+        return new WordOptionMessage(wordService.getRandomWords(3));
     }
 }

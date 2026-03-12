@@ -1,10 +1,16 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/html">
+<html>
 <head>
     <title>SketchGuess Test</title>
 
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+
+    <style>
+        canvas {
+            border:1px solid black;
+        }
+    </style>
 
 </head>
 
@@ -21,196 +27,260 @@
 <br><br>
 
 <input id="roomId" placeholder="Room ID">
-
 <button onclick="joinRoom()">Join Room</button>
 
 <hr>
 
 <h3>Drawing Board</h3>
-
-<canvas id="board" width="600" height="400" style="border:1px solid black"></canvas>
+<canvas id="board" width="600" height="400"></canvas>
 
 <h3>Guess</h3>
-
 <input id="guessInput" placeholder="Type guess">
 <button onclick="sendGuess()">Guess</button>
 
 <h3>Room Messages</h3>
-
 <ul id="messages"></ul>
+
 <input id="chatInput" placeholder="Type message">
 <button onclick="sendChat()">Send</button>
 
+<br><br>
+
+<button onclick="requestWords()">Get Words</button>
+
 <script>
+
+    // ------------------------------------------------
+    // DOM ELEMENTS
+    // ------------------------------------------------
+
+    const usernameInput = document.getElementById("username");
+    const roomIdInput = document.getElementById("roomId");
+    const chatInput = document.getElementById("chatInput");
+    const guessInput = document.getElementById("guessInput");
+    const messages = document.getElementById("messages");
+
+    const canvas = document.getElementById("board");
+    const ctx = canvas.getContext("2d");
+
+    // ------------------------------------------------
+    // GLOBAL STATE
+    // ------------------------------------------------
 
     let stompClient = null;
     let currentRoom = null;
+    let roomSubscription = null;
+
+    // ------------------------------------------------
+    // WEBSOCKET CONNECTION
+    // ------------------------------------------------
 
     function connect() {
 
-        let socket = new SockJS("http://localhost:8080/ws");
+        const socket = new SockJS("http://localhost:8080/ws");
         stompClient = Stomp.over(socket);
 
-       stompClient.connect({}, function () {
-            console.log("Connected");
-            stompClient.subscribe("/user/queue/room-created", function(message) {
-                let roomId = message.body;
-                console.log("Room created:", roomId);
-                subscribeToRoom(roomId);
-            });
+        stompClient.connect({}, () => {
+
+            console.log("Connected to WebSocket");
+
+            subscribeToUserQueues();
 
         });
+
+    }
+
+    function subscribeToUserQueues() {
+
+        stompClient.subscribe("/user/queue/room-created", message => {
+
+            const roomId = message.body;
+
+            console.log("Room created:", roomId);
+
+            roomIdInput.value = roomId;
+
+            subscribeToRoom(roomId);
+
+        });
+
+        stompClient.subscribe("/user/queue/word-options", message => {
+
+            const data = JSON.parse(message.body);
+
+            console.log("Word options:", data.words);
+
+        });
+
     }
 
     connect();
 
+    // ------------------------------------------------
+    // ROOM MANAGEMENT
+    // ------------------------------------------------
 
     function createRoom() {
 
-        let username = document.getElementById("username").value;
-
         stompClient.send("/app/createRoom", {}, JSON.stringify({
-            username: username
+            username: usernameInput.value
         }));
 
     }
 
-
     function joinRoom() {
 
-        let username = document.getElementById("username").value;
-        let roomId = document.getElementById("roomId").value;
+        const roomId = roomIdInput.value;
 
         currentRoom = roomId;
 
         stompClient.send("/app/joinRoom", {}, JSON.stringify({
             roomId: roomId,
-            username: username
+            username: usernameInput.value
         }));
+
         subscribeToRoom(roomId);
+
     }
 
-    let roomSubscription = null;
+    function subscribeToRoom(roomId) {
 
-function subscribeToRoom(roomId) {
+        if (roomSubscription) {
+            roomSubscription.unsubscribe();
+        }
 
-    if (roomSubscription) {
-        roomSubscription.unsubscribe();
+        roomSubscription = stompClient.subscribe(
+            "/topic/room/" + roomId,
+            message => addMessage(message.body)
+        );
+
+        stompClient.subscribe(
+            "/topic/room/" + roomId + "/chat",
+            message => addMessage(message.body)
+        );
+
+        stompClient.subscribe(
+            "/topic/room/" + roomId + "/draw",
+            message => {
+
+                const drawEvent = JSON.parse(message.body);
+
+                drawLine(
+                    drawEvent.prevX,
+                    drawEvent.prevY,
+                    drawEvent.currentX,
+                    drawEvent.currentY
+                );
+
+            }
+        );
+
     }
 
-    roomSubscription = stompClient.subscribe("/topic/room/" + roomId, function(message) {
+    // ------------------------------------------------
+    // CHAT
+    // ------------------------------------------------
 
-        let li = document.createElement("li");
-        li.innerText = message.body;
-
-        document.getElementById("messages").appendChild(li);
-
-    });
-
-    stompClient.subscribe("/topic/room/" + roomId + "/chat", function(message) {
-
-    let li = document.createElement("li");
-    li.innerText = message.body;
-
-    document.getElementById("messages").appendChild(li);
-
-    });
-
-    stompClient.subscribe("/topic/room/" + roomId + "/draw", function(message) {
-
-    const drawEvent = JSON.parse(message.body);
-
-    drawLine(
-        drawEvent.prevX,
-        drawEvent.prevY,
-        drawEvent.currentX,
-        drawEvent.currentY
-    );
-
-});
-}
     function sendChat() {
 
-    let message = document.getElementById("chatInput").value;
+        stompClient.send("/app/chat", {}, JSON.stringify({
+            message: chatInput.value
+        }));
 
-    stompClient.send("/app/chat", {}, JSON.stringify({
-        message: message
-    }));
+        chatInput.value = "";
 
+    }
 
+    function addMessage(text) {
 
-}
+        const li = document.createElement("li");
 
-//***************************************************************
-    const canvas = document.getElementById("board");
-const ctx = canvas.getContext("2d");
+        li.innerText = text;
 
-let drawing = false;
-let prevX = 0;
-let prevY = 0;
+        messages.appendChild(li);
 
-canvas.addEventListener("mousedown", function(e) {
-    drawing = true;
-    prevX = e.offsetX;
-    prevY = e.offsetY;
-});
+    }
 
-canvas.addEventListener("mouseup", function() {
-    drawing = false;
-});
+    // ------------------------------------------------
+    // DRAWING
+    // ------------------------------------------------
 
-canvas.addEventListener("mousemove", function(e) {
+    let drawing = false;
+    let prevX = 0;
+    let prevY = 0;
 
-    if (!drawing) return;
+    canvas.addEventListener("mousedown", e => {
 
-    const x = e.offsetX;
-    const y = e.offsetY;
+        drawing = true;
+        prevX = e.offsetX;
+        prevY = e.offsetY;
 
-    drawLine(prevX, prevY, x, y);
+    });
 
-    sendDraw(prevX, prevY, x, y);
+    canvas.addEventListener("mouseup", () => drawing = false);
 
-    prevX = x;
-    prevY = y;
+    canvas.addEventListener("mousemove", e => {
 
-});
+        if (!drawing) return;
+
+        const x = e.offsetX;
+        const y = e.offsetY;
+
+        drawLine(prevX, prevY, x, y);
+
+        sendDraw(prevX, prevY, x, y);
+
+        prevX = x;
+        prevY = y;
+
+    });
 
     function drawLine(x1, y1, x2, y2) {
 
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
 
-}
+    }
 
     function sendDraw(prevX, prevY, currentX, currentY) {
 
-    stompClient.send("/app/draw", {}, JSON.stringify({
+        stompClient.send("/app/draw", {}, JSON.stringify({
+            prevX,
+            prevY,
+            currentX,
+            currentY,
+            color: "black"
+        }));
 
-        prevX: prevX,
-        prevY: prevY,
-        currentX: currentX,
-        currentY: currentY,
-        color: "black"
+    }
 
-    }));
+    // ------------------------------------------------
+    // GUESS SYSTEM
+    // ------------------------------------------------
 
-}
-
-    //****************
     function sendGuess() {
 
-    let guess = document.getElementById("guessInput").value;
+        stompClient.send("/app/guess", {}, JSON.stringify({
+            message: guessInput.value
+        }));
 
-    stompClient.send("/app/guess", {}, JSON.stringify({
-        message: guess
-    }));
+        guessInput.value = "";
 
-}
+    }
+
+    // ------------------------------------------------
+    // WORD REQUEST
+    // ------------------------------------------------
+
+    function requestWords() {
+
+        stompClient.send("/app/requestWords", {}, {});
+
+    }
 
 </script>
-
 
 </body>
 </html>
