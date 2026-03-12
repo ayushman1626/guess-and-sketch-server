@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SketchGuess Test</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+
+</head>
+
+<body>
+
+<h2>SketchGuess Test Client</h2>
+
+<input id="username" placeholder="Username">
+
+<br><br>
+
+<button onclick="createRoom()">Create Room</button>
+
+<br><br>
+
+<input id="roomId" placeholder="Room ID">
+
+<button onclick="joinRoom()">Join Room</button>
+
+<hr>
+
+<h3>Room Messages</h3>
+
+<ul id="messages"></ul>
+
+<script>
+
+    let stompClient = null;
+    let currentRoom = null;
+
+    function connect() {
+
+        let socket = new SockJS("http://localhost:8080/ws");
+        stompClient = Stomp.over(socket);
+
+       stompClient.connect({}, function () {
+            console.log("Connected");
+            stompClient.subscribe("/user/queue/room-created", function(message) {
+                let roomId = message.body;
+                console.log("Room created:", roomId);
+                subscribeToRoom(roomId);
+            });
+
+        });
+    }
+
+    connect();
+
+
+    function createRoom() {
+
+        let username = document.getElementById("username").value;
+
+        stompClient.send("/app/createRoom", {}, JSON.stringify({
+            username: username
+        }));
+
+    }
+
+
+    function joinRoom() {
+
+        let username = document.getElementById("username").value;
+        let roomId = document.getElementById("roomId").value;
+
+        currentRoom = roomId;
+
+        stompClient.send("/app/joinRoom", {}, JSON.stringify({
+            roomId: roomId,
+            username: username
+        }));
+        subscribeToRoom(roomId);
+    }
+
+    let roomSubscription = null;
+
+function subscribeToRoom(roomId) {
+
+    if (roomSubscription) {
+        roomSubscription.unsubscribe();
+    }
+
+    roomSubscription = stompClient.subscribe("/topic/room/" + roomId, function(message) {
+
+        let li = document.createElement("li");
+        li.innerText = message.body;
+
+        document.getElementById("messages").appendChild(li);
+
+    });
+
+}
+
+</script>
+
+</body>
+</html>
