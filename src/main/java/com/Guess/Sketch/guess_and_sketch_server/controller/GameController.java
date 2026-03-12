@@ -1,5 +1,6 @@
 package com.Guess.Sketch.guess_and_sketch_server.controller;
 
+import com.Guess.Sketch.guess_and_sketch_server.dto.ChatMessage;
 import com.Guess.Sketch.guess_and_sketch_server.dto.CreateRoomMessage;
 import com.Guess.Sketch.guess_and_sketch_server.dto.JoinRoomMessage;
 import com.Guess.Sketch.guess_and_sketch_server.model.Room;
@@ -64,5 +65,23 @@ public class GameController {
         );
 
         return room.getRoomId();
+    }
+
+    @MessageMapping("/chat")
+    public void chat(ChatMessage message,
+                     SimpMessageHeaderAccessor headerAccessor) {
+
+        String sessionId = headerAccessor.getSessionId();
+
+        String roomId = roomManager.getRoomIdBySession(sessionId);
+
+        Room room = roomManager.getRoomById(roomId);
+
+        String username = room.getPlayerBySession(sessionId).getUsername();
+
+        messagingTemplate.convertAndSend(
+                "/topic/room/" + roomId + "/chat",
+                username + ": " + message.getMessage()
+        );
     }
 }

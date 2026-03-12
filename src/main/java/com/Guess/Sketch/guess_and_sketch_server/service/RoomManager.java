@@ -53,4 +53,12 @@ public class RoomManager {
 
         return room;
     }
+
+    public String getRoomIdBySession(String sessionId) {
+        return sessionToRoom.get(sessionId);
+    }
+
+    public Room getRoomById(String roomId) {
+        return rooms.get(roomId);
+    }
 }

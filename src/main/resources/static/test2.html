@@ -29,6 +29,8 @@
 <h3>Room Messages</h3>
 
 <ul id="messages"></ul>
+<input id="chatInput" placeholder="Type message">
+<button onclick="sendChat()">Send</button>
 
 <script>
 
@@ -95,6 +97,25 @@ function subscribeToRoom(roomId) {
         document.getElementById("messages").appendChild(li);
 
     });
+
+    stompClient.subscribe("/topic/room/" + roomId + "/chat", function(message) {
+
+    let li = document.createElement("li");
+    li.innerText = message.body;
+
+    document.getElementById("messages").appendChild(li);
+
+    });
+}
+    function sendChat() {
+
+    let message = document.getElementById("chatInput").value;
+
+    stompClient.send("/app/chat", {}, JSON.stringify({
+        message: message
+    }));
+
+
 
 }
 
