@@ -1,23 +1,21 @@
 package com.Guess.Sketch.guess_and_sketch_server.model;
 
-import lombok.*;
-
 public class Player {
 
-    private String session_id;
+    private String sessionId;
     private String username;
 
     public Player(String session_id, String username) {
-        this.session_id = session_id;
+        this.sessionId = session_id;
         this.username = username;
     }
 
-    public String getSession_id() {
-        return session_id;
+    public String getSessionId() {
+        return sessionId;
     }
 
-    public void setSession_id(String session_id) {
-        this.session_id = session_id;
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
     }
 
     public String getUsername() {

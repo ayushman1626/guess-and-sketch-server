@@ -5,6 +5,7 @@ import com.Guess.Sketch.guess_and_sketch_server.model.Room;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -37,7 +38,7 @@ public class RoomManager {
         } while (rooms.containsKey(roomId));
 
         //Create room
-        Room room =  new Room(roomId,new ArrayList<>(),"tree");
+        Room room =  new Room(roomId,new ArrayList<>(),sessionId);
 
         System.out.println("Created room with ID: " + roomId);
 
@@ -60,5 +61,9 @@ public class RoomManager {
 
     public Room getRoomById(String roomId) {
         return rooms.get(roomId);
+    }
+
+    public List<Room> getRooms() {
+        return new ArrayList<>(rooms.values());
     }
 }

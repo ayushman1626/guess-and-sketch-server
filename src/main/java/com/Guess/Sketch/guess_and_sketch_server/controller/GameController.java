@@ -2,6 +2,7 @@ package com.Guess.Sketch.guess_and_sketch_server.controller;
 
 import com.Guess.Sketch.guess_and_sketch_server.dto.*;
 import com.Guess.Sketch.guess_and_sketch_server.model.Room;
+import com.Guess.Sketch.guess_and_sketch_server.service.GameService;
 import com.Guess.Sketch.guess_and_sketch_server.service.RoomManager;
 import com.Guess.Sketch.guess_and_sketch_server.service.WordService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -19,14 +20,17 @@ public class GameController {
     private final RoomManager roomManager;
     private final SimpMessagingTemplate messagingTemplate;
     private final WordService wordService;
+    private final GameService gameService;
 
     public GameController(RoomManager roomManager,
                           SimpMessagingTemplate messagingTemplate,
-                          WordService wordService
+                          WordService wordService,
+                            GameService gameService
     ) {
         this.roomManager = roomManager;
         this.messagingTemplate = messagingTemplate;
         this.wordService = wordService;
+        this.gameService = gameService;
     }
 
     @MessageMapping("/joinRoom")
@@ -35,21 +39,8 @@ public class GameController {
 
         // Get the session ID from the header
         String sessionId = headerAccessor.getSessionId();
-
-        // Join the room using the RoomManager
-        Room room = roomManager.joinRoom(
-                message.getRoomId(),
-                sessionId,
-                message.getUsername()
-        );
-
-        messagingTemplate.convertAndSend(
-                "/topic/room/" + room.getRoomId(),
-                message.getUsername() + " joined the room"
-        );
-        System.out.println(
-                "User " + message.getUsername() + " joined room " + message.getRoomId()
-        );
+        // Join the room using the GameService
+        gameService.handelJoinRoom(sessionId, message);
     }
 
     @MessageMapping("/createRoom")
@@ -58,35 +49,20 @@ public class GameController {
                              SimpMessageHeaderAccessor headerAccessor) {
 
         String sessionId = headerAccessor.getSessionId();
-
-        Room room = roomManager.createRoom(
-                sessionId,
-                message.getUsername()
-        );
-
-        System.out.println(
-                "User " + message.getUsername() + " created room " + room.getRoomId()
-        );
-
+        Room room = roomManager.createRoom(sessionId, message.getUsername());
+        System.out.println("User " + message.getUsername() + " created room " + room.getRoomId());
         return room.getRoomId();
     }
+    // Needed Fix - (controller voilations - > accessed game data) - (game data should be handled by service)
+
+
 
     @MessageMapping("/chat")
     public void chat(ChatMessage message,
                      SimpMessageHeaderAccessor headerAccessor) {
 
         String sessionId = headerAccessor.getSessionId();
-
-        String roomId = roomManager.getRoomIdBySession(sessionId);
-
-        Room room = roomManager.getRoomById(roomId);
-
-        String username = room.getPlayerBySession(sessionId).getUsername();
-
-        messagingTemplate.convertAndSend(
-                "/topic/room/" + roomId + "/chat",
-                username + ": " + message.getMessage()
-        );
+        gameService.handelChat(sessionId, message);
     }
 
     @MessageMapping("/draw")
@@ -94,13 +70,7 @@ public class GameController {
                      SimpMessageHeaderAccessor headerAccessor) {
 
         String sessionId = headerAccessor.getSessionId();
-
-        String roomId = roomManager.getRoomIdBySession(sessionId);
-
-        messagingTemplate.convertAndSend(
-                "/topic/room/" + roomId + "/draw",
-                drawEvent
-        );
+        gameService.handelDraw(sessionId, drawEvent);
     }
 
     @MessageMapping("/guess")
@@ -108,20 +78,7 @@ public class GameController {
                       SimpMessageHeaderAccessor headerAccessor){
 
         String sessionId = headerAccessor.getSessionId();
-
-        String roomId = roomManager.getRoomIdBySession(sessionId);
-
-        Room room = roomManager.getRoomById(roomId);
-
-        String username = room.getPlayerBySession(sessionId).getUsername();
-
-        if(message.getMessage().equalsIgnoreCase(room.getCurrentWord())){
-            messagingTemplate.convertAndSend(
-                    "/topic/room/"+ roomId,username+" guessed Correctly");
-        }else{
-            messagingTemplate.convertAndSend(
-                    "/topic/room/"+ roomId,username+" guessed wrong !");
-        }
+        gameService.handelGuess(sessionId, message);
     }
 
     @MessageMapping("/requestWords")
@@ -136,4 +93,18 @@ public class GameController {
 
         return new WordOptionMessage(wordService.getRandomWords(3));
     }
+    //Needed Fix - (controller voilations - > accessed game data) - (game data should be handled by service)
+
+    @MessageMapping("/startGame")
+    public void startGame(SimpMessageHeaderAccessor headerAccessor){
+        String sessionId = headerAccessor.getSessionId();
+        gameService.handelGameStart(sessionId);
+    }
+
+    @MessageMapping("/selectWord")
+    public void selectWord(SelectWordMessage message, SimpMessageHeaderAccessor headerAccessor) {
+        String sessionId = headerAccessor.getSessionId();
+        gameService.handelSelectWord(sessionId, message.getWord());
+    }
+
 }
