@@ -21,7 +21,7 @@ public class RoomManager {
         if (room == null) {
             throw new IllegalArgumentException("Room not found");
         }
-
+        if(room.isFull()) return null;
         //Add player to room
         Player player = new Player(sessionId, username);
         room.getPlayers().add(player);
@@ -65,5 +65,17 @@ public class RoomManager {
 
     public List<Room> getRooms() {
         return new ArrayList<>(rooms.values());
+    }
+
+    public void removeSession(String sessionId) {
+        sessionToRoom.remove(sessionId);
+    }
+
+    public void closeRoom(Room room) {
+        if(room == null) return;
+        if(room.getRoundStartTask() != null) {
+            room.getRoundStartTask().cancel(false);
+        }
+        rooms.remove(room.getRoomId());
     }
 }

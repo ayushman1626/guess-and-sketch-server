@@ -17,6 +17,11 @@ public enum EventType {
     WORD_OPTIONS,
     WORD_SELECTED,
 
-    ROOM_FULL
+    ROOM_FULL,
 
+    SCORE_UPDATE,
+
+    ROOM_UPDATE,
+
+    GAME_STOP
 }

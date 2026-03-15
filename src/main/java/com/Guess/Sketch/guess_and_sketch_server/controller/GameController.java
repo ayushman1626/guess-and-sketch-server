@@ -78,7 +78,7 @@ public class GameController {
                       SimpMessageHeaderAccessor headerAccessor){
 
         String sessionId = headerAccessor.getSessionId();
-        gameService.handelGuess(sessionId, message);
+        gameService.handleGuess(sessionId, message);
     }
 
     @MessageMapping("/requestWords")

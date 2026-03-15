@@ -24,19 +24,14 @@ public class RoundScheduler {
             if (room.getState() == GameState.DRAWING || room.getState() == GameState.WORD_SELECTION) {
 
                 if (System.currentTimeMillis() > room.getRoundEndTime()) {
-
                     gameService.endRound(room);
-
-                }
-                if(room.getCorrectGuessers().size() ==
-                        room.getPlayers().size() - 1){
-
+                } else if(room.getCorrectGuessers().size() >= Math.max(1, room.getPlayers().size() - 1)) {
                     gameService.endRound(room);
                 }
 
             }
             if(room.getState() == GameState.WORD_SELECTION
-                    && System.currentTimeMillis() > room.getRoundEndTime() - 50000) {
+                    && System.currentTimeMillis() > room.getRoundEndTime() - 45000) {
                 gameService.autoSelectWord(room);
             }
 

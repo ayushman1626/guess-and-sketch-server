@@ -4,6 +4,7 @@ public class Player {
 
     private String sessionId;
     private String username;
+    private int score = 0;
 
     public Player(String session_id, String username) {
         this.sessionId = session_id;
@@ -24,5 +25,13 @@ public class Player {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public int getScore() {
+        return score;
+    }
+
+    public void setScore(int score) {
+        this.score = score;
     }
 }

@@ -5,29 +5,32 @@ import com.Guess.Sketch.guess_and_sketch_server.dto.DrawEvent;
 import com.Guess.Sketch.guess_and_sketch_server.enums.GameState;
 import lombok.*;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledFuture;
 
-@Builder
 @Data
 public class Room {
 
     private String roomId;
-    private List<Player> players;
+    private List<Player> players = new CopyOnWriteArrayList<>();
     private String currentWord;
     private int currentDrawerIndex = -1;
     private String creatorSessionId;
     private GameState state = GameState.WAITING;
-    private Set<String> correctGuessers = new HashSet<>();
-    private List<DrawEvent> drawEvents = new ArrayList<>();
+    private Set<String> correctGuessers = ConcurrentHashMap.newKeySet();
+    private List<DrawEvent> drawEvents = new CopyOnWriteArrayList<>();
     private long roundEndTime;
+    private int currentRound = 1;
+    private int maxRounds = 3;
+    private ScheduledFuture<?> roundStartTask;
     private static final int MAX_PLAYERS = 10;
 
     public Room(String roomId, List<Player> players, String creatorSessionId) {
         this.roomId = roomId;
-        this.players = players;
+        this.players = new CopyOnWriteArrayList<>(players);
         this.creatorSessionId = creatorSessionId;
     }
 
@@ -103,6 +106,30 @@ public class Room {
         this.roundEndTime = roundEndTime;
     }
 
+    public int getCurrentRound() {
+        return currentRound;
+    }
+
+    public void setCurrentRound(int currentRound) {
+        this.currentRound = currentRound;
+    }
+
+    public int getMaxRounds() {
+        return maxRounds;
+    }
+
+    public void setMaxRounds(int maxRounds) {
+        this.maxRounds = maxRounds;
+    }
+
+    public ScheduledFuture<?> getRoundStartTask() {
+        return roundStartTask;
+    }
+
+    public void setRoundStartTask(ScheduledFuture<?> roundStartTask) {
+        this.roundStartTask = roundStartTask;
+    }
+
     public CreateRoomMessage getPlayerBySession(String sessionId) {
         for (Player player : players) {
             if (player.getSessionId().equals(sessionId)) {
@@ -110,5 +137,20 @@ public class Room {
             }
         }
         return null;
+    }
+    public boolean isFull() {
+        return players.size() >= MAX_PLAYERS;
+    }
+    public Player getPlayerEntityBySession(String sessionId) {
+        for (Player player : players) {
+            if (player.getSessionId().equals(sessionId)) {
+                return player;
+            }
+        }
+        return null;
+    }
+
+    public void removePlayer(String sessionId) {
+        players.removeIf(player -> player.getSessionId().equals(sessionId));
     }
 }
