@@ -11,10 +11,12 @@ import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Controller
 public class GameController {
     private final RoomManager roomManager;
@@ -49,8 +51,20 @@ public class GameController {
                              SimpMessageHeaderAccessor headerAccessor) {
 
         String sessionId = headerAccessor.getSessionId();
-        Room room = roomManager.createRoom(sessionId, message.getUsername());
-        System.out.println("User " + message.getUsername() + " created room " + room.getRoomId());
+        // Sanitize username: strip HTML tags and enforce max length
+        String username = message.getUsername();
+        if (username != null) {
+            username = username.replaceAll("<[^>]*>", "").trim();
+            if (username.length() > 20) username = username.substring(0, 20);
+        }
+        if (username == null || username.isEmpty()) {
+            log.warn("Rejected createRoom with empty username from session {}", sessionId);
+            return null;
+        }
+        message.setUsername(username);
+
+        Room room = roomManager.createRoom(sessionId, username);
+        log.info("User {} created room {}", username, room.getRoomId());
         return room.getRoomId();
     }
     // Needed Fix - (controller voilations - > accessed game data) - (game data should be handled by service)

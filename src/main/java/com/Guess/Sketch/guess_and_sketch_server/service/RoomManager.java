@@ -3,12 +3,14 @@ package com.Guess.Sketch.guess_and_sketch_server.service;
 import com.Guess.Sketch.guess_and_sketch_server.model.Player;
 import com.Guess.Sketch.guess_and_sketch_server.model.Room;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+@Slf4j
 @Service
 public class RoomManager {
     private final ConcurrentMap<String, Room> rooms = new ConcurrentHashMap<>();
@@ -19,9 +21,13 @@ public class RoomManager {
         //Throw Exception if room doesn't exist
         Room room = rooms.get(roomId);
         if (room == null) {
+            log.warn("Attempt to join non-existent room: {}", roomId);
             throw new IllegalArgumentException("Room not found");
         }
-        if(room.isFull()) return null;
+        if(room.isFull()) {
+            log.warn("Attempt to join full room: {}", roomId);
+            return null;
+        }
         //Add player to room
         Player player = new Player(sessionId, username);
         room.getPlayers().add(player);
@@ -40,7 +46,7 @@ public class RoomManager {
         //Create room
         Room room =  new Room(roomId,new ArrayList<>(),sessionId);
 
-        System.out.println("Created room with ID: " + roomId);
+        log.info("Created room with ID: {} by user {}", roomId, username);
 
         //Add room to map
         rooms.put(roomId, room);
@@ -68,7 +74,10 @@ public class RoomManager {
     }
 
     public void removeSession(String sessionId) {
-        sessionToRoom.remove(sessionId);
+        String roomId = sessionToRoom.remove(sessionId);
+        if (roomId != null) {
+            log.debug("Session {} removed from room {}", sessionId, roomId);
+        }
     }
 
     public void closeRoom(Room room) {
@@ -77,5 +86,6 @@ public class RoomManager {
             room.getRoundStartTask().cancel(false);
         }
         rooms.remove(room.getRoomId());
+        log.info("Closed room: {}", room.getRoomId());
     }
 }

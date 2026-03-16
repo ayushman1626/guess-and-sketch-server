@@ -16,10 +16,13 @@ public class CustomHandshakeHandler extends DefaultHandshakeHandler {
     protected Principal determineUser(ServerHttpRequest request,
                                       WebSocketHandler wsHandler,
                                       Map<String, Object> attributes) {
+        // Sec-WebSocket-Key is only present for native WebSocket upgrades.
+        // SockJS fallback transports (XHR, long-polling) do NOT send it,
+        // so we fall back to a random UUID to avoid null session identity.
         String sessionId = request.getHeaders().getFirst("Sec-WebSocket-Key");
+        if (sessionId == null || sessionId.isBlank()) {
+            sessionId = UUID.randomUUID().toString();
+        }
         return new StompPrincipal(sessionId);
     }
 }
-
-
-

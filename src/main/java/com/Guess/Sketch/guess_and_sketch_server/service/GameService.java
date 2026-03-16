@@ -7,7 +7,9 @@ import com.Guess.Sketch.guess_and_sketch_server.model.Room;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 import com.Guess.Sketch.guess_and_sketch_server.enums.GameState;
+import jakarta.annotation.PreDestroy;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -15,12 +17,18 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 public class GameService {
     private final RoomManager roomManager;
     private final SimpMessagingTemplate messagingTemplate;
     private final WordService wordService;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
+
+    // --- Security constants ---
+    private static final int MAX_USERNAME_LENGTH = 20;
+    private static final int MAX_MESSAGE_LENGTH = 200;
+    private static final int MAX_DRAW_EVENTS_PER_ROUND = 5000;
 
     public GameService(RoomManager roomManager,
                           SimpMessagingTemplate messagingTemplate,
@@ -31,7 +39,52 @@ public class GameService {
         this.wordService = wordService;
     }
 
+    @PreDestroy
+    public void shutdown() {
+        log.info("Shutting down GameService scheduler...");
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+                log.warn("Scheduler did not terminate in time, forced shutdown.");
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    // --- Input sanitization helpers ---
+
+    /**
+     * Strips HTML tags, trims whitespace, and enforces max length.
+     */
+    private String sanitize(String input, int maxLength) {
+        if (input == null) return "";
+        // Strip HTML tags to prevent XSS
+        String cleaned = input.replaceAll("<[^>]*>", "").trim();
+        if (cleaned.length() > maxLength) {
+            cleaned = cleaned.substring(0, maxLength);
+        }
+        return cleaned;
+    }
+
+    private String sanitizeUsername(String username) {
+        return sanitize(username, MAX_USERNAME_LENGTH);
+    }
+
+    private String sanitizeMessage(String message) {
+        return sanitize(message, MAX_MESSAGE_LENGTH);
+    }
+
     public void handelJoinRoom(String sessionId, JoinRoomMessage message) {
+        String username = sanitizeUsername(message.getUsername());
+        if (username.isEmpty()) {
+            log.warn("Rejected join with empty/invalid username from session {}", sessionId);
+            return;
+        }
+        message.setUsername(username);
+
         // Join the room using the RoomManager
         Room room = roomManager.joinRoom(
                 message.getRoomId(),
@@ -47,10 +100,13 @@ public class GameService {
                 "/topic/room/"+ room.getRoomId(),
                 new GameEvent(EventType.ROOM_UPDATE,new RoomUpdateDto(room.getRoomId(),room.getPlayers(),room.getDrawEvents()))
         );
-        System.out.println("User " + message.getUsername() + " joined room " + message.getRoomId());
+        log.info("User {} joined room {}", message.getUsername(), message.getRoomId());
     }
 
     public void handelChat(String sessionId, ChatMessage message){
+        String sanitizedMsg = sanitizeMessage(message.getMessage());
+        if (sanitizedMsg.isEmpty()) return;
+
         String roomId = roomManager.getRoomIdBySession(sessionId);
 
         Room room = roomManager.getRoomById(roomId);
@@ -59,10 +115,10 @@ public class GameService {
 
         messagingTemplate.convertAndSend(
                 "/topic/room/" + roomId + "/chat",
-                 new GameEvent(EventType.CHAT_MESSAGE,new ChatMessage(username, message.getMessage()))
+                 new GameEvent(EventType.CHAT_MESSAGE,new ChatMessage(username, sanitizedMsg))
         );
 
-        System.out.println("User " + username + " sent message: " + message.getMessage() + " to room " + roomId);
+        log.debug("User {} sent message to room {}: {}", username, roomId, sanitizedMsg);
     }
 
 
@@ -88,7 +144,7 @@ public class GameService {
         room.setCurrentDrawerIndex(-1);
         messagingTemplate.convertAndSend("/topic/room/" + room.getRoomId(),
                     new GameEvent(EventType.GAME_STARTED,null));
-        System.out.println("Game started in room " + roomId + " by user " + room.getPlayerBySession(sessionId).getUsername());
+        log.info("Game started in room {} by user {}", roomId, room.getPlayerBySession(sessionId).getUsername());
         startRound(room);
     }
 
@@ -145,7 +201,7 @@ public class GameService {
                         new WordOptionMessage(wordService.getRandomWords(3))),
                 headerAccessor.getMessageHeaders()
         );
-        System.out.println("Sent word options to drawer: " + player.getUsername()+" :: " + player.getSessionId());
+        log.info("Sent word options to drawer: {} ({}) in room {}", player.getUsername(), player.getSessionId(), room.getRoomId());
 
         room.setRoundEndTime(System.currentTimeMillis()+60000);
         // Broadcast ROUND_STARTED
@@ -175,8 +231,8 @@ public class GameService {
         room.setState(GameState.DRAWING);
         messagingTemplate.convertAndSend("/topic/room/"+room.getRoomId(),
                 new GameEvent(EventType.WORD_SELECTED,drawer.getUsername()));
-            System.out.println("Drawer " + drawer.getUsername() + " selected word: " + word);
-            System.out.println("Round started in room " + roomId + " with drawer " + drawer.getUsername() + " and word " + word);
+        log.info("Drawer {} selected word: {} in room {}", drawer.getUsername(), word, roomId);
+        log.info("Round started in room {} with drawer {} and word {}", roomId, drawer.getUsername(), word);
 
     }
 
@@ -189,6 +245,13 @@ public class GameService {
         if(!room.getState().equals(GameState.DRAWING)) return;
         Player drawer = room.getPlayers().get(room.getCurrentDrawerIndex());
         if(!drawer.getSessionId().equals(sessionId)) return;
+
+        // Cap draw events to prevent memory exhaustion
+        if (room.getDrawEvents().size() >= MAX_DRAW_EVENTS_PER_ROUND) {
+            log.warn("Draw event cap reached for room {}, ignoring further events", roomId);
+            return;
+        }
+
         room.getDrawEvents().add(drawEvent);
 
         messagingTemplate.convertAndSend(
@@ -218,7 +281,8 @@ public class GameService {
 
         if(room.getCorrectGuessers().contains(sessionId)) return;
 
-        String guess = message.getMessage().trim();
+        String guess = sanitizeMessage(message.getMessage().trim());
+        if (guess.isEmpty()) return;
 
         if(guess.equalsIgnoreCase(room.getCurrentWord())){
 
@@ -266,7 +330,7 @@ public class GameService {
                 new GameEvent(EventType.SCORE_UPDATE,
                         new ScoreUpdateRes(guesser.getUsername(), score, newScore))
         );
-        System.out.println( "Guesser " + guesser.getUsername() + " scored " + score + " points. Total score: " + newScore);
+        log.info("Guesser {} scored {} points. Total score: {}", guesser.getUsername(), score, newScore);
         int drawerScore = drawer.getScore() + score/2;
         drawer.setScore(drawerScore);
         messagingTemplate.convertAndSend(
@@ -274,7 +338,7 @@ public class GameService {
                 new GameEvent(EventType.SCORE_UPDATE,
                         new ScoreUpdateRes(drawer.getUsername(), score/2, drawerScore))
         );
-            System.out.println( "Drawer " + drawer.getUsername() + " scored " + score/2 + " points. Total score: " + drawerScore);
+        log.info("Drawer {} scored {} points. Total score: {}", drawer.getUsername(), score/2, drawerScore);
     }
 
 
@@ -289,7 +353,7 @@ public class GameService {
         messagingTemplate.convertAndSend("/topic/room/"+ room.getRoomId(),
                 new GameEvent(EventType.ROUND_ENDED,"Round ended! The word was: " + room.getCurrentWord()));
 
-        System.out.println("Round Ended in Romm : "+room.getRoomId());
+        log.info("Round Ended in Room: {}", room.getRoomId());
 
         room.getDrawEvents().clear();
         

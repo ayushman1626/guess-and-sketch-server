@@ -8,7 +8,9 @@ import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 public class WebSocketEventListener {
 
@@ -27,6 +29,7 @@ public class WebSocketEventListener {
     public void handleDisconnect(SessionDisconnectEvent event) {
 
         String sessionId = event.getSessionId();
+        log.info("Session Disconnected: {}", sessionId);
 
         String roomId = roomManager.getRoomIdBySession(sessionId);
         if(roomId == null) return;
@@ -38,6 +41,7 @@ public class WebSocketEventListener {
         if(player == null) return;
 
         String username = player.getUsername();
+        log.info("User {} (session: {}) disconnected from room {}", username, sessionId, roomId);
 
         boolean wasDrawer = false;
 
@@ -60,7 +64,7 @@ public class WebSocketEventListener {
 
         if(room.getPlayers().isEmpty()){
             roomManager.closeRoom(room);
-            System.out.println("Room Closed" + room.getRoomId());
+            log.info("Room Closed: {}", room.getRoomId());
             return;
         }
 

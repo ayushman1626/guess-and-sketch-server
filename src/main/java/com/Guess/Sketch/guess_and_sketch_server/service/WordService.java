@@ -2,12 +2,14 @@ package com.Guess.Sketch.guess_and_sketch_server.service;
 
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.*;
 
+@Slf4j
 @Service
 public class WordService {
 
@@ -33,11 +35,11 @@ public class WordService {
                 words.add(line.trim());
             }
 
-            System.out.println("Loaded words: " + words.size());
+            log.info("Loaded words: {}", words.size());
 
         } catch (Exception e) {
 
-            e.printStackTrace();
+            log.error("Failed to load words", e);
         }
     }
 

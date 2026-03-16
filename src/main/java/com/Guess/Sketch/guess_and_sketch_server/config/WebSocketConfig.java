@@ -1,19 +1,30 @@
 package com.Guess.Sketch.guess_and_sketch_server.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.Arrays;
+
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    @Value("${app.cors.allowed-origins:http://localhost:5173}")
+    private String allowedOriginsRaw;
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        String[] origins = Arrays.stream(allowedOriginsRaw.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toArray(String[]::new);
+
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*")
+                .setAllowedOriginPatterns(origins)
                 .setHandshakeHandler(new CustomHandshakeHandler())
                 .withSockJS();
     }
@@ -24,6 +35,4 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");
     }
-
-    // This class is a configuration class for WebSocket in a Spring Boot application. It enables WebSocket message handling and configures the message broker. The registerStompEndpoints method registers a STOMP endpoint at "/ws" and allows cross-origin requests from any origin. The configureMessageBroker method sets up a simple in-memory message broker with a destination prefix of "/topic" for outgoing messages and "/app" for incoming messages. This configuration allows clients to connect to the WebSocket endpoint and send/receive messages using the specified prefixes.
 }
