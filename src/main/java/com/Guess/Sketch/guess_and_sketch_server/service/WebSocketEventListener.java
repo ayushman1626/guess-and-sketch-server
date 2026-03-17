@@ -1,23 +1,26 @@
 package com.Guess.Sketch.guess_and_sketch_server.service;
 
+import com.Guess.Sketch.guess_and_sketch_server.controller.GameController;
 import com.Guess.Sketch.guess_and_sketch_server.dto.GameEvent;
 import com.Guess.Sketch.guess_and_sketch_server.enums.EventType;
 import com.Guess.Sketch.guess_and_sketch_server.model.Player;
 import com.Guess.Sketch.guess_and_sketch_server.model.Room;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
+
 @Component
 public class WebSocketEventListener {
 
     private final RoomManager roomManager;
     private final GameService gameService;
     private final SimpMessagingTemplate messagingTemplate;
-
+    private static final Logger log = LoggerFactory.getLogger(GameController.class);
     public WebSocketEventListener(RoomManager roomManager
     , GameService gameService, SimpMessagingTemplate messagingTemplate) {
         this.roomManager = roomManager;

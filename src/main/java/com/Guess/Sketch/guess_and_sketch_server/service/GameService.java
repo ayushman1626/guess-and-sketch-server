@@ -1,9 +1,12 @@
 package com.Guess.Sketch.guess_and_sketch_server.service;
 
+import com.Guess.Sketch.guess_and_sketch_server.controller.GameController;
 import com.Guess.Sketch.guess_and_sketch_server.dto.*;
 import com.Guess.Sketch.guess_and_sketch_server.enums.EventType;
 import com.Guess.Sketch.guess_and_sketch_server.model.Player;
 import com.Guess.Sketch.guess_and_sketch_server.model.Room;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -11,20 +14,23 @@ import lombok.extern.slf4j.Slf4j;
 import com.Guess.Sketch.guess_and_sketch_server.enums.GameState;
 import jakarta.annotation.PreDestroy;
 
+import java.util.Comparator;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
-@Slf4j
+
 @Service
 public class GameService {
     private final RoomManager roomManager;
     private final SimpMessagingTemplate messagingTemplate;
     private final WordService wordService;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
-
+    private static final Logger log = LoggerFactory.getLogger(GameController.class);
     // --- Security constants ---
     private static final int MAX_USERNAME_LENGTH = 20;
     private static final int MAX_MESSAGE_LENGTH = 200;
@@ -138,7 +144,10 @@ public class GameService {
         if (room.getPlayers().size() < 2) return;
         if(!room.getCreatorSessionId().equals(sessionId)) return;
         
-        room.getPlayers().forEach(p -> p.setScore(0));
+        room.getPlayers().forEach(p -> {
+            p.setScore(0);
+            p.setRoundScore(0);
+        });
         room.setCurrentRound(1);
         room.setState(GameState.WORD_SELECTION);
         room.setCurrentDrawerIndex(-1);
@@ -160,21 +169,17 @@ public class GameService {
           * 7. Start round timer (optional - can be handled on client side with a timestamp)*
         * */
         if(room.getPlayers().size() < 2) {
-            room.setState(GameState.WAITING);
-            messagingTemplate.convertAndSend("/topic/room/" + room.getRoomId(),
-                    new GameEvent(EventType.GAME_STOP,new RoomUpdateDto(room.getRoomId(),room.getPlayers(),room.getDrawEvents())));
-
+            handelGameOver(room,"NOT_ENOUGH_PLAYERS");
             return;
         }
 
         int nextDrawerIndex = (room.getCurrentDrawerIndex() + 1) % room.getPlayers().size();
-        
+
+        //
         if (room.getCurrentDrawerIndex() != -1 && nextDrawerIndex == 0) {
             room.setCurrentRound(room.getCurrentRound() + 1);
             if (room.getCurrentRound() > room.getMaxRounds()) {
-                room.setState(GameState.WAITING);
-                messagingTemplate.convertAndSend("/topic/room/" + room.getRoomId(),
-                        new GameEvent(EventType.GAME_STOP, new RoomUpdateDto(room.getRoomId(), room.getPlayers(), room.getDrawEvents())));
+               handelGameOver(room,"MAX_ROUNDS_REACHED");
                 return;
             }
         }
@@ -231,6 +236,23 @@ public class GameService {
         room.setState(GameState.DRAWING);
         messagingTemplate.convertAndSend("/topic/room/"+room.getRoomId(),
                 new GameEvent(EventType.WORD_SELECTED,drawer.getUsername()));
+
+
+        // Send word to drawer
+        SimpMessageHeaderAccessor headerAccessor =
+                SimpMessageHeaderAccessor.create();
+
+        headerAccessor.setSessionId(drawer.getSessionId());
+        headerAccessor.setLeaveMutable(true);
+
+        messagingTemplate.convertAndSendToUser(
+                drawer.getSessionId(),
+                "/queue/selected-word",
+                new GameEvent(EventType.SELECTED_WORD,
+                        word),
+                headerAccessor.getMessageHeaders()
+        );
+        log.info(new GameEvent(EventType.SELECTED_WORD, word).toString());
         log.info("Drawer {} selected word: {} in room {}", drawer.getUsername(), word, roomId);
         log.info("Round started in room {} with drawer {} and word {}", roomId, drawer.getUsername(), word);
 
@@ -322,6 +344,7 @@ public class GameService {
             remainingTime = 0;
 
         int score = (int)(100 * (remainingTime / (double) 60000));// Assuming 60 seconds per round
+        guesser.setRoundScore(score);
         int newScore = guesser.getScore() + score;
         guesser.setScore(newScore);
 
@@ -332,6 +355,7 @@ public class GameService {
         );
         log.info("Guesser {} scored {} points. Total score: {}", guesser.getUsername(), score, newScore);
         int drawerScore = drawer.getScore() + score/2;
+        drawer.setRoundScore(drawer.getRoundScore() + score/2);
         drawer.setScore(drawerScore);
         messagingTemplate.convertAndSend(
                 "/topic/room/" + room.getRoomId()+"/score",
@@ -353,12 +377,22 @@ public class GameService {
         messagingTemplate.convertAndSend("/topic/room/"+ room.getRoomId(),
                 new GameEvent(EventType.ROUND_ENDED,"Round ended! The word was: " + room.getCurrentWord()));
 
+        // Broadcast round scores
+        messagingTemplate.convertAndSend(
+                "/topic/room/" + room.getRoomId()+"/score",
+                new GameEvent(EventType.ROUND_SCORES,
+                        new RoundScoreRes(room.getPlayers().stream()
+                                .map(p -> new ScoreUpdateRes(p.getUsername(), p.getRoundScore(),p.getScore()))
+                                .toList()))
+        );
+
         log.info("Round Ended in Room: {}", room.getRoomId());
 
         room.getDrawEvents().clear();
         
         ScheduledFuture<?> task = scheduler.schedule(() -> startRound(room), 5, TimeUnit.SECONDS);
         room.setRoundStartTask(task);
+
     }
 
     public void autoSelectWord(Room room) {
@@ -368,5 +402,24 @@ public class GameService {
             handelSelectWord(drawer.getSessionId(), word);
         }
 
+    }
+
+    private void handelGameOver(Room room, String reason) {
+        room.setState(GameState.WAITING);
+
+        String winner = room.getPlayers().stream()
+                .max(Comparator.comparingInt(Player::getScore)).get().getUsername();
+
+        Map<String, Integer> finalScores = room.getPlayers().stream()
+                .collect(Collectors.toMap(Player::getUsername, Player::getScore));
+
+        GameEndedRes payload = new GameEndedRes(reason,winner,finalScores);
+
+        messagingTemplate.convertAndSend("/topic/room/" + room.getRoomId(),
+                new GameEvent(EventType.GAME_ENDED, payload));
+        messagingTemplate.convertAndSend("/topic/room/"+ room.getRoomId(),
+                new GameEvent(EventType.ROOM_UPDATE,new RoomUpdateDto(room.getRoomId(),room.getPlayers(),room.getDrawEvents())));
+
+        log.info("Game stopped in room {} due to insufficient players", room.getRoomId());
     }
 }

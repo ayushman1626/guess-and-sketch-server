@@ -5,11 +5,14 @@ public class Player {
     private String sessionId;
     private String username;
     private int score = 0;
+    private int roundScore = 0;
 
     public Player(String session_id, String username) {
         this.sessionId = session_id;
         this.username = username;
     }
+
+
 
     public String getSessionId() {
         return sessionId;
@@ -33,5 +36,13 @@ public class Player {
 
     public void setScore(int score) {
         this.score = score;
+    }
+
+    public int getRoundScore() {
+        return roundScore;
+    }
+
+    public void setRoundScore(int roundScore) {
+        this.roundScore = roundScore;
     }
 }

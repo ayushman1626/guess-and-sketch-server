@@ -1,7 +1,10 @@
 package com.Guess.Sketch.guess_and_sketch_server.service;
 
+import com.Guess.Sketch.guess_and_sketch_server.controller.GameController;
 import com.Guess.Sketch.guess_and_sketch_server.model.Player;
 import com.Guess.Sketch.guess_and_sketch_server.model.Room;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 
@@ -10,12 +13,11 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-@Slf4j
 @Service
 public class RoomManager {
     private final ConcurrentMap<String, Room> rooms = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, String> sessionToRoom = new ConcurrentHashMap<>();
-
+    private static final Logger log = LoggerFactory.getLogger(GameController.class);
 
     public Room joinRoom(String roomId, String sessionId, String username) {
         //Throw Exception if room doesn't exist

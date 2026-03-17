@@ -1,6 +1,9 @@
 package com.Guess.Sketch.guess_and_sketch_server.service;
 
+import com.Guess.Sketch.guess_and_sketch_server.controller.GameController;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 
@@ -9,10 +12,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.*;
 
-@Slf4j
+
 @Service
 public class WordService {
-
+    private static final Logger log = LoggerFactory.getLogger(GameController.class);
     private List<String> words = new ArrayList<>();
 
     private Random random = new Random();

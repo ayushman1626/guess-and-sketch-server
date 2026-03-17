@@ -5,6 +5,8 @@ import com.Guess.Sketch.guess_and_sketch_server.model.Room;
 import com.Guess.Sketch.guess_and_sketch_server.service.GameService;
 import com.Guess.Sketch.guess_and_sketch_server.service.RoomManager;
 import com.Guess.Sketch.guess_and_sketch_server.service.WordService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
@@ -16,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.HashMap;
 import java.util.Map;
 
-@Slf4j
+
 @Controller
 public class GameController {
     private final RoomManager roomManager;
@@ -34,6 +36,8 @@ public class GameController {
         this.wordService = wordService;
         this.gameService = gameService;
     }
+
+    private static final Logger log = LoggerFactory.getLogger(GameController.class);
 
     @MessageMapping("/joinRoom")
     public void joinRoom(JoinRoomMessage message,
