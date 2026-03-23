@@ -619,9 +619,6 @@ When a player disconnects (WebSocket closes):
 5. If the **drawer** disconnects, the current round ends immediately and the next round begins.
 6. If the drawer index becomes out of bounds, it resets to `0`.
 
-> [!WARNING]
-> There is a **minor bug** in the disconnect handler: the `PLAYER_LEFT` broadcast destination is missing a `/` separator (`"/topic/room" + roomId` instead of `"/topic/room/" + roomId`). This means `PLAYER_LEFT` events may not be received unless the server code is patched. Subscribe to `/topic/room{roomId}` (no slash before the ID) as a workaround, or notify the backend developer.
-
 ---
 
 ## 10. Complete Integration Example
