@@ -26,5 +26,9 @@ public enum EventType {
     SELECTED_WORD,
     ROUND_SCORES,
     GAME_ENDED,
-    GAME_STOP
+
+
+    ERROR, GAME_STOP,
+    RATELIMIT_EXCEEDED,
+
 }

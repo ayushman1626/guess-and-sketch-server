@@ -1,12 +1,15 @@
 package com.Guess.Sketch.guess_and_sketch_server.config;
 
+import com.Guess.Sketch.guess_and_sketch_server.dto.GameEvent;
+import com.Guess.Sketch.guess_and_sketch_server.enums.EventType;
 import com.Guess.Sketch.guess_and_sketch_server.service.RateLimiterService;
 import io.github.bucket4j.Bucket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
@@ -18,15 +21,25 @@ import org.springframework.stereotype.Component;
 public class RateLimitInterceptor implements ChannelInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(RateLimitInterceptor.class);
-    @Autowired
-    private RateLimiterService rateLimiter;
+
+    private final RateLimiterService rateLimiter;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    public RateLimitInterceptor(RateLimiterService rateLimiter,
+                                @Lazy SimpMessagingTemplate messagingTemplate) {  //**Needs fix, circular dependency with web socket config
+        this.rateLimiter = rateLimiter;
+        this.messagingTemplate = messagingTemplate;
+    }
+
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
 
         StompHeaderAccessor accessor =
                 MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
-        if (accessor == null) return message;
+        if (accessor == null) {
+            return message;
+        }
 
         // Only limit SEND messages
         if (StompCommand.SEND.equals(accessor.getCommand())) {
@@ -38,36 +51,51 @@ public class RateLimitInterceptor implements ChannelInterceptor {
                 return message;
             }
 
-            //Normalize destination (/app/guess → /guess)
+            // Normalize destination (/app/guess → /guess)
             String endpoint = normalizeDestination(destination);
-
             String key = sessionId + ":" + endpoint;
-
-            log.info("⏱️ Checking rate limit for: " + key+" available tokens: "+rateLimiter.resolveBucket(key).getAvailableTokens());
 
             Bucket bucket = rateLimiter.resolveBucket(key);
 
-            //** Needed to change. Handle with response
+            log.info("⏱️ Checking rate limit for: {} | Available tokens: {}",
+                    key, bucket.getAvailableTokens());
+
             if (!bucket.tryConsume(1)) {
 
-                log.info("🚫 Rate limit hit: " + key);
+                log.warn("🚫 Rate limit hit: {}", key);
 
-                // ❗ Option 1: Block silently
+                sendRateLimitError(sessionId, endpoint);
+
+                //IMPORTANT: block the message
                 return null;
-
-                // ❗ Option 2 (better UX): send error to client (advanced)
-                // throw new MessagingException("Rate limit exceeded");
             }
         }
 
         return message;
     }
 
+    private void sendRateLimitError(String sessionId, String endpoint) {
+
+        SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create();
+        headerAccessor.setSessionId(sessionId);
+        headerAccessor.setLeaveMutable(true);
+
+        GameEvent event = new GameEvent(
+                EventType.RATELIMIT_EXCEEDED,
+                "Rate limit exceeded for endpoint: " + endpoint
+        );
+
+        messagingTemplate.convertAndSendToUser(
+                sessionId,
+                "/queue/errors",
+                event,
+                headerAccessor.getMessageHeaders()
+        );
+    }
+
     private String normalizeDestination(String destination) {
-        // Example: /app/guess → /guess
-        if (destination.startsWith("/app")) {
-            return destination.substring(4);
-        }
-        return destination;
+        return destination.startsWith("/app")
+                ? destination.substring(4)
+                : destination;
     }
 }

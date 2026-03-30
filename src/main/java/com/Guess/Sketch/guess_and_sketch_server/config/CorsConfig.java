@@ -1,4 +1,6 @@
+/*
 package com.Guess.Sketch.guess_and_sketch_server.config;
+
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -42,3 +44,5 @@ public class CorsConfig {
         return new CorsFilter(source);
     }
 }
+*/
+

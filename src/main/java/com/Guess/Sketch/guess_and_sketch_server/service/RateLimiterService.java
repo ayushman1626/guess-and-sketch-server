@@ -2,6 +2,8 @@ package com.Guess.Sketch.guess_and_sketch_server.service;
 
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -11,7 +13,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class RateLimiterService {
 
+    private static final Logger log = LoggerFactory.getLogger(RateLimiterService.class);
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+
 
     public Bucket resolveBucket(String key) {
         return buckets.computeIfAbsent(key, this::createBucket);
@@ -22,6 +26,20 @@ public class RateLimiterService {
                 .addLimit(getBandwidth(key))
                 .build();
     }
+
+
+    // key = sessionId:endpoint
+    // utilities to remove buckets by session id and build keys
+    public void removeBucketsForSession(String sessionId) {
+        if (sessionId == null || sessionId.isEmpty()) {
+            return;
+        }
+        String prefix = sessionId + ":";
+        // safe removal on ConcurrentHashMap's keySet
+        buckets.keySet().removeIf(k -> k != null && k.startsWith(prefix));
+        log.info("Removed buckets for session: {}", sessionId);
+    }
+
 
     private Bandwidth getBandwidth(String key) {
 

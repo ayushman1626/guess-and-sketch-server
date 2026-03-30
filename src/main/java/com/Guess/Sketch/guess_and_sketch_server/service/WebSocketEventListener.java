@@ -20,13 +20,17 @@ public class WebSocketEventListener {
     private final RoomManager roomManager;
     private final GameService gameService;
     private final SimpMessagingTemplate messagingTemplate;
-    private static final Logger log = LoggerFactory.getLogger(GameController.class);
+    private final RateLimiterService rateLimiterService;
+
     public WebSocketEventListener(RoomManager roomManager
-    , GameService gameService, SimpMessagingTemplate messagingTemplate) {
+    , GameService gameService, SimpMessagingTemplate messagingTemplate, RateLimiterService rateLimiterService) {
         this.roomManager = roomManager;
         this.gameService = gameService;
         this.messagingTemplate = messagingTemplate;
+        this.rateLimiterService = rateLimiterService;
     }
+
+    private static final Logger log = LoggerFactory.getLogger(GameController.class);
 
     @EventListener
     public void handleDisconnect(SessionDisconnectEvent event) {
@@ -60,10 +64,14 @@ public class WebSocketEventListener {
         //
         roomManager.removeSession(sessionId);
 
+
+
         //
         messagingTemplate.convertAndSend(
                 "/topic/room/" + room.getRoomId(),new GameEvent(EventType.PLAYER_LEFT, username)
         );
+
+        rateLimiterService.removeBucketsForSession(sessionId);
 
         if(room.getPlayers().isEmpty()){
             roomManager.closeRoom(room);
