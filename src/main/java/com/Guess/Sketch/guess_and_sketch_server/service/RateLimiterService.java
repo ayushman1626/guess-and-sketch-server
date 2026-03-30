@@ -42,7 +42,7 @@ public class RateLimiterService {
                 return Bandwidth.simple(1, Duration.ofSeconds(5));
 
             case "/draw":
-                return Bandwidth.simple(50, Duration.ofSeconds(1));
+                return Bandwidth.simple(30, Duration.ofSeconds(1));
 
             case "/startGame":
             case "/selectWord":

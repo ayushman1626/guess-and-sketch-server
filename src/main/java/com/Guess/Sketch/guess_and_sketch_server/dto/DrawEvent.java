@@ -1,25 +1,67 @@
 package com.Guess.Sketch.guess_and_sketch_server.dto;
 
+import java.util.List;
+
 public class DrawEvent {
 
-    private int prevX;
-    private int prevY;
-    private int currentX;
-    private int currentY;
+    private String type; // "start", "draw", "end"
+
+    private List<Point> points; // for draw
+
+    private Integer x; // for start
+    private Integer y;
+
     private String color;
+    private Integer size;
 
-    public int getPrevX() { return prevX; }
-    public void setPrevX(int prevX) { this.prevX = prevX; }
+    // getters/setters
 
-    public int getPrevY() { return prevY; }
-    public void setPrevY(int prevY) { this.prevY = prevY; }
+    public String getType() {
+        return type;
+    }
 
-    public int getCurrentX() { return currentX; }
-    public void setCurrentX(int currentX) { this.currentX = currentX; }
+    public void setType(String type) {
+        this.type = type;
+    }
 
-    public int getCurrentY() { return currentY; }
-    public void setCurrentY(int currentY) { this.currentY = currentY; }
+    public List<Point> getPoints() {
+        return points;
+    }
 
-    public String getColor() { return color; }
-    public void setColor(String color) { this.color = color; }
+    public void setPoints(List<Point> points) {
+        this.points = points;
+    }
+
+    public Integer getX() {
+        return x;
+    }
+
+    public void setX(Integer x) {
+        this.x = x;
+    }
+
+    public Integer getY() {
+        return y;
+    }
+
+    public void setY(Integer y) {
+        this.y = y;
+    }
+
+    public String getColor() {
+        return color;
+    }
+
+    public void setColor(String color) {
+        this.color = color;
+    }
+
+    public Integer getSize() {
+        return size;
+    }
+
+    public void setSize(Integer size) {
+        this.size = size;
+    }
+
 }
