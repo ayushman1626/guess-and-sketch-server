@@ -316,7 +316,7 @@ public class GameService {
                     "/topic/room/" + roomId,
                     new GameEvent(EventType.PLAYER_GUESSED, player.getUsername())
             );
-
+            log.info("Player {} guessed the word correctly in room {}", player.getUsername(), roomId);
         } else {
 
             messagingTemplate.convertAndSend(
@@ -324,6 +324,7 @@ public class GameService {
                     new GameEvent(EventType.CHAT_MESSAGE,
                             new ChatMessage(player.getUsername(), guess))
             );
+            log.info("Player {} guessed the word WRONG : '{}' in room {}", player.getUsername(), guess, roomId);
         }
 
         int guessers = room.getPlayers().size() - 1;
